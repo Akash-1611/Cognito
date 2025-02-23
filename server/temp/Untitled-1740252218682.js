@@ -1,0 +1,1 @@
+#include<iostream>\nusing namespace std;\nint main() { cout << \"Hello from C++\"; return 0;
