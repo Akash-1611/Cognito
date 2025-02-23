@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { executeCode, createRoom, joinRoom, saveCode, loadCode, getLastRoom } from "../utils/api"; 
-// ⬆️ Add a new API function `getLastRoom` to fetch the last active room from MongoDB
-
+import { executeCode, createRoom, joinRoom, saveCode, loadCode, getLastRoom } from "../utils/api";
 import { io } from "socket.io-client";
 
 const socket = io("https://cognito-0c7v.onrender.com");
@@ -11,22 +9,22 @@ const IDE = () => {
   const [code, setCode] = useState("// Start coding...");
   const [output, setOutput] = useState("");
   const [language, setLanguage] = useState("javascript");
-  const [roomId, setRoomId] = useState("");
+  const [roomId, setRoomId] = useState(localStorage.getItem("roomId") || "");
 
-  /** ✅ Fetch Last Active Room from MongoDB on Page Load */
+  /** ✅ Fetch Last Active Room from MongoDB on Load */
   useEffect(() => {
     getLastRoom()
       .then((data) => {
-        if (data?.roomId) {
-          setRoomId(data.roomId);
-        }
+        console.log("ℹ️ Last active room from DB:", data?.roomId);
+        // ❌ Do not auto-set roomId here; just log it
       })
       .catch((err) => console.error("❌ Error fetching last room:", err));
   }, []);
 
-  /** ✅ Load Code from Database When Room is Joined */
+  /** ✅ Rejoin Room on Refresh */
   useEffect(() => {
     if (roomId) {
+      socket.emit("joinRoom", roomId);
       loadCode(roomId)
         .then((data) => {
           if (data) {
@@ -35,17 +33,10 @@ const IDE = () => {
           }
         })
         .catch((err) => console.error("❌ Error loading code:", err));
-
-      socket.emit("joinRoom", roomId);
     }
 
-    socket.on("codeUpdate", (newCode) => {
-      setCode(newCode);
-    });
-
-    socket.on("outputUpdate", (newOutput) => {
-      setOutput(newOutput);
-    });
+    socket.on("codeUpdate", (newCode) => setCode(newCode));
+    socket.on("outputUpdate", (newOutput) => setOutput(newOutput));
 
     return () => {
       socket.off("codeUpdate");
@@ -53,7 +44,7 @@ const IDE = () => {
     };
   }, [roomId]);
 
-  /** ✅ Auto-Save Code Every 1.5s (Debounce) */
+  /** ✅ Auto-Save Code Every 1.5s */
   useEffect(() => {
     if (roomId) {
       const saveTimer = setTimeout(() => {
@@ -83,7 +74,6 @@ const IDE = () => {
   /** ✅ Handle Code Changes */
   const handleCodeChange = (newCode) => {
     setCode(newCode);
-
     if (roomId) {
       socket.emit("updateCode", { roomId, code: newCode });
     }
@@ -92,10 +82,13 @@ const IDE = () => {
   /** ✅ Create Room */
   const handleCreateRoom = async () => {
     try {
-      const data = await createRoom();
-      setRoomId(data.roomId);
-      alert(`✅ Room Created: ${data.roomId}`);
-      socket.emit("createRoom", data.roomId);
+      const { roomId } = await createRoom();
+      if (roomId) {
+        setRoomId(roomId);
+        localStorage.setItem("roomId", roomId);
+        alert(`✅ Room Created: ${roomId}`);
+        socket.emit("createRoom", roomId);
+      }
     } catch (error) {
       alert("⚠️ Failed to create room: " + (error.response?.data?.message || error.message));
     }
@@ -103,12 +96,17 @@ const IDE = () => {
 
   /** ✅ Join Room */
   const handleJoinRoom = async () => {
-    if (!roomId) return alert("⚠️ Enter a Room ID!");
+    if (!roomId.trim()) {
+      return alert("⚠️ Please enter a valid Room ID before joining!");
+    }
 
     try {
-      await joinRoom(roomId);
-      alert(`✅ Joined Room: ${roomId}`);
-      socket.emit("joinRoom", roomId);
+      const response = await joinRoom(roomId);
+      if (response.success) {
+        socket.emit("joinRoom", roomId);
+        localStorage.setItem("roomId", roomId); // ✅ Store room ID
+        alert(`✅ Successfully joined Room: ${roomId}`);
+      }
     } catch (error) {
       alert("⚠️ Failed to join room: " + (error.response?.data?.message || error.message));
     }
@@ -117,6 +115,7 @@ const IDE = () => {
   /** ✅ Leave Room */
   const handleLeaveRoom = () => {
     socket.emit("leaveRoom", roomId);
+    localStorage.removeItem("roomId"); // ✅ Remove from storage
     setRoomId(""); // Reset room ID
     setCode("// Start coding...");
     setOutput("");

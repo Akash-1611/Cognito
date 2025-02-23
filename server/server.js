@@ -52,25 +52,33 @@ io.on("connection", (socket) => {
   console.log("🔗 A user connected:", socket.id);
 
   socket.on("joinRoom", async (roomId) => {
+    if (!roomId) {
+      console.warn(`⚠️ User ${socket.id} tried to join a room without a valid ID.`);
+      return;
+    }
+  
+    const room = await Room.findOne({ roomId });
+    if (!room) {
+      console.warn(`⚠️ Room ${roomId} does not exist.`);
+      socket.emit("error", "Room does not exist!");
+      return;
+    }
+  
     socket.join(roomId);
     console.log(`👥 User ${socket.id} joined room: ${roomId}`);
 
-    // ✅ Fetch latest code from MongoDB
-    const room = await Room.findOne({ roomId });
-    if (room) {
-      socket.emit("codeUpdate", room.code);
-    }
+    // ✅ Send the latest code when a user reconnects
+    socket.emit("codeUpdate", room.code);
   });
 
   socket.on("updateCode", async ({ roomId, code }) => {
     await Room.updateOne(
       { roomId },
-      { $set: { code, updatedAt: new Date() } }, // ✅ Ensure updatedAt is updated
+      { $set: { code, updatedAt: new Date() } },
       { upsert: true }
     );
     socket.to(roomId).emit("codeUpdate", code);
   });
-  
 
   socket.on("updateOutput", ({ roomId, output }) => {
     socket.to(roomId).emit("outputUpdate", output);
@@ -80,5 +88,8 @@ io.on("connection", (socket) => {
     console.log("❌ User disconnected:", socket.id);
   });
 });
+
+  
+
 
 httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
