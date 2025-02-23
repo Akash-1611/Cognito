@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = axios.create({ baseURL: "http://localhost:5000" });
+const API = axios.create({ baseURL: "https://cognito-0c7v.onrender.com" });
 
 // ✅ Attach Authorization Token to Requests
 API.interceptors.request.use((req) => {
@@ -44,7 +44,7 @@ export const executeCode = async (data) => {
 
 // ✅ Collaboration APIs
 export const createRoom = async () => {
-  const response = await axios.post("http://localhost:5000/collab/create-room", {}, {
+  const response = await axios.post("https://cognito-0c7v.onrender.com/collab/create-room", {}, {
     headers: { "Content-Type": "application/json" }, // ✅ Remove Authorization
   });
   return response.data;

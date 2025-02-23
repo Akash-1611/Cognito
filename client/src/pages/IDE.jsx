@@ -5,7 +5,7 @@ import { executeCode, createRoom, joinRoom, saveCode, loadCode, getLastRoom } fr
 
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000");
+const socket = io("https://cognito-0c7v.onrender.com");
 
 const IDE = () => {
   const [code, setCode] = useState("// Start coding...");
